@@ -21,7 +21,9 @@ import {
   Divider,
   Button,
   Switch,
-  FormControlLabel} from '@mui/material'
+  FormControlLabel,
+  Tooltip
+} from '@mui/material'
 import {
   ContentCopy,
   Analytics,
@@ -31,12 +33,71 @@ import {
   Link as LinkIcon,
   Refresh,
   Computer,
-  Person
+  Person,
+  Public,
+  PhoneIphone,
+  Info
 } from '@mui/icons-material'
 import axios from 'axios'
+import URLStatsDialog from '../components/URLStatsDialog'
 
 const API_BASE_URL = 'http://localhost:8000'
-const AUTO_REFRESH_INTERVAL = 5000 // 5 seconds
+const AUTO_REFRESH_INTERVAL = 5000 
+
+const getDeviceType = (userAgent) => {
+  if (!userAgent) return 'Unknown';
+  
+  const ua = userAgent.toLowerCase();
+  if (ua.includes('mobile') || ua.includes('android') || ua.includes('iphone') || ua.includes('ipad')) {
+    return 'Mobile';
+  } else if (ua.includes('tablet')) {
+    return 'Tablet';
+  } else {
+    return 'Desktop';
+  }
+};
+
+const getBrowser = (userAgent) => {
+  if (!userAgent) return 'Unknown';
+  
+  const ua = userAgent.toLowerCase();
+  
+  if (ua.includes('firefox')) {
+    return 'Firefox';
+  } else if (ua.includes('chrome') && !ua.includes('edg')) {
+    return 'Chrome';
+  } else if (ua.includes('safari') && !ua.includes('chrome')) {
+    return 'Safari';
+  } else if (ua.includes('edge') || ua.includes('edg')) {
+    return 'Edge';
+  } else if (ua.includes('opera') || ua.includes('opr')) {
+    return 'Opera';
+  } else if (ua.includes('msie') || ua.includes('trident')) {
+    return 'Internet Explorer';
+  } else {
+    return 'Unknown';
+  }
+};
+
+const getOperatingSystem = (userAgent) => {
+  if (!userAgent) return 'Unknown';
+  
+  const ua = userAgent.toLowerCase();
+  
+  if (ua.includes('windows')) {
+    return 'Windows';
+  } else if (ua.includes('mac os') || ua.includes('macintosh') || ua.includes('darwin')) {
+    return 'macOS';
+  } else if (ua.includes('linux') && !ua.includes('android')) {
+    return 'Linux';
+  } else if (ua.includes('android')) {
+    return 'Android';
+  } else if (ua.includes('ios') || ua.includes('iphone') || ua.includes('ipad')) {
+    return 'iOS';
+  } else {
+    return 'Unknown';
+  }
+};
 
 function StatisticsPage() {
   const [urls, setUrls] = useState([])
@@ -46,6 +107,8 @@ function StatisticsPage() {
   const [autoRefresh, setAutoRefresh] = useState(false)
   const [lastRefreshed, setLastRefreshed] = useState(null)
   const refreshTimerRef = useRef(null)
+  const [dialogOpen, setDialogOpen] = useState(false)
+  const [selectedUrl, setSelectedUrl] = useState(null)
   
   const fetchAllUrls = useCallback(async (showLoading = true) => {
     try {
@@ -55,7 +118,6 @@ function StatisticsPage() {
       const response = await axios.get(`${API_BASE_URL}/api/urls`)
       setUrls(response.data.urls)
       
-      // If auto-refreshing, show a brief notification
       if (!showLoading && autoRefresh) {
         setSnackbar({
           open: true,
@@ -83,7 +145,6 @@ function StatisticsPage() {
     fetchAllUrls()
     setLastRefreshed(new Date())
     
-    // Clean up timer when component unmounts
     return () => {
       if (refreshTimerRef.current) {
         clearInterval(refreshTimerRef.current)
@@ -91,11 +152,10 @@ function StatisticsPage() {
     }
   }, [fetchAllUrls])
   
-  // Set up or clear auto-refresh based on state
   useEffect(() => {
     if (autoRefresh) {
       refreshTimerRef.current = setInterval(() => {
-        fetchAllUrls(false) // Don't show loading indicator for auto-refresh
+        fetchAllUrls(false)
         setLastRefreshed(new Date())
       }, AUTO_REFRESH_INTERVAL)
     } else if (refreshTimerRef.current) {
@@ -146,6 +206,15 @@ function StatisticsPage() {
         severity: 'error'
       })
     }
+  }
+  
+  const openDetailsDialog = (urlData) => {
+    setSelectedUrl(urlData)
+    setDialogOpen(true)
+  }
+  
+  const closeDetailsDialog = () => {
+    setDialogOpen(false)
   }
 
   return (
@@ -243,23 +312,6 @@ function StatisticsPage() {
           </Box>
         </Box>
         
-        {lastRefreshed && (
-          <Typography 
-            variant="caption" 
-            color="text.secondary" 
-            sx={{ 
-              display: 'block', 
-              textAlign: 'right', 
-              mb: 2,
-              fontSize: {
-                xs: 'clamp(0.7rem, 2vw, 0.75rem)',
-                sm: 'clamp(0.75rem, 2.2vw, 0.875rem)'
-              }
-            }}
-          >
-            Last refreshed: {lastRefreshed.toLocaleTimeString()}
-          </Typography>
-        )}
         
         {loading ? (
           <Box sx={{ 
@@ -394,21 +446,38 @@ function StatisticsPage() {
                         alignItems: { xs: 'flex-start', sm: 'flex-end' },
                         gap: 1
                       }}>
-                        <Button
-                          size="small"
-                          variant="outlined"
-                          color="error"
-                          onClick={() => deleteUrl(urlData.shortcode)}
-                          sx={{ 
-                            borderRadius: 2,
-                            fontSize: {
-                              xs: 'clamp(0.7rem, 2vw, 0.75rem)',
-                              sm: 'clamp(0.75rem, 2.2vw, 0.875rem)'
-                            }
-                          }}
-                        >
-                          Delete
-                        </Button>
+                        <Box sx={{ display: 'flex', gap: 1 }}>
+                          <Button
+                            size="small"
+                            variant="contained"
+                            startIcon={<Info />}
+                            onClick={() => openDetailsDialog(urlData)}
+                            sx={{ 
+                              borderRadius: 2,
+                              fontSize: {
+                                xs: 'clamp(0.7rem, 2vw, 0.75rem)',
+                                sm: 'clamp(0.75rem, 2.2vw, 0.875rem)'
+                              }
+                            }}
+                          >
+                            Details
+                          </Button>
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            color="error"
+                            onClick={() => deleteUrl(urlData.shortcode)}
+                            sx={{ 
+                              borderRadius: 2,
+                              fontSize: {
+                                xs: 'clamp(0.7rem, 2vw, 0.75rem)',
+                                sm: 'clamp(0.75rem, 2.2vw, 0.875rem)'
+                              }
+                            }}
+                          >
+                            Delete
+                          </Button>
+                        </Box>
                       </Box>
                     </Box>
                     
@@ -508,13 +577,13 @@ function StatisticsPage() {
                                         sm: 'clamp(0.875rem, 2.5vw, 1rem)'
                                       }
                                     }}>
-                                      User Agent / Source
+                                      Device & Browser
                                     </TableCell>
                                   </TableRow>
                                 </TableHead>
                                 <TableBody>
                                   {urlData.click_history.map((click, index) => (
-                                    <TableRow key={index}>
+                                    <TableRow key={index} hover>
                                       <TableCell sx={{ 
                                         fontSize: {
                                           xs: 'clamp(0.7rem, 2vw, 0.75rem)',
@@ -529,7 +598,21 @@ function StatisticsPage() {
                                           sm: 'clamp(0.75rem, 2.2vw, 0.875rem)'
                                         }
                                       }}>
-                                        {click.ip_address || 'Unknown'}
+                                        <Tooltip title="IP Address" placement="top" arrow>
+                                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                            <Public fontSize="small" color="action" />
+                                            <span>{click.ip_address || 'Unknown'}</span>
+                                            {click.ip_address && (
+                                              <IconButton 
+                                                size="small" 
+                                                onClick={() => copyToClipboard(click.ip_address)}
+                                                sx={{ padding: '2px', ml: 1 }}
+                                              >
+                                                <ContentCopy fontSize="small" sx={{ fontSize: '0.85rem' }} />
+                                              </IconButton>
+                                            )}
+                                          </Box>
+                                        </Tooltip>
                                       </TableCell>
                                       <TableCell sx={{ 
                                         fontSize: {
@@ -537,7 +620,26 @@ function StatisticsPage() {
                                           sm: 'clamp(0.75rem, 2.2vw, 0.875rem)'
                                         }
                                       }}>
-                                        {click.user_agent || 'Unknown'}
+                                        {click.user_agent ? (
+                                          <Tooltip
+                                            title={<Typography variant="caption">{click.user_agent}</Typography>}
+                                            placement="top"
+                                            arrow
+                                          >
+                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                              {getDeviceType(click.user_agent) === 'Mobile' ? (
+                                                <PhoneIphone fontSize="small" color="primary" />
+                                              ) : (
+                                                <Computer fontSize="small" color="primary" />
+                                              )}
+                                              <span>
+                                                <b>{getBrowser(click.user_agent)}</b> on {getOperatingSystem(click.user_agent)}
+                                              </span>
+                                            </Box>
+                                          </Tooltip>
+                                        ) : (
+                                          'Unknown'
+                                        )}
                                       </TableCell>
                                     </TableRow>
                                   ))}
@@ -569,21 +671,22 @@ function StatisticsPage() {
           </Grid>
         )}
         
-        {/* Last refreshed info */}
         <Divider sx={{ my: 3 }} />
-        <Typography 
-          variant="body2" 
-          color="text.secondary" 
-          align="center"
-          sx={{ 
-            fontSize: {
-              xs: 'clamp(0.75rem, 2vw, 0.875rem)',
-              sm: 'clamp(0.875rem, 2.5vw, 1rem)'
-            }
-          }}
-        >
-          {`Last refreshed: ${lastRefreshed ? lastRefreshed.toLocaleString() : 'Never'}`}
-        </Typography>
+        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 1 }}>
+          <Refresh color="action" fontSize="small" />
+          <Typography 
+            variant="body2" 
+            color="text.secondary" 
+            sx={{ 
+              fontSize: {
+                xs: 'clamp(0.75rem, 2vw, 0.875rem)',
+                sm: 'clamp(0.875rem, 2.5vw, 1rem)'
+              }
+            }}
+          >
+            {`Last refreshed: ${lastRefreshed ? lastRefreshed.toLocaleString() : 'Never'}`}
+          </Typography>
+        </Box>
       </Paper>
       
       <Snackbar
@@ -607,6 +710,13 @@ function StatisticsPage() {
           {snackbar.message}
         </Alert>
       </Snackbar>
+      
+      <URLStatsDialog 
+        open={dialogOpen} 
+        onClose={closeDetailsDialog} 
+        urlData={selectedUrl}
+        copyToClipboard={copyToClipboard}
+      />
     </Box>
   )
 }
